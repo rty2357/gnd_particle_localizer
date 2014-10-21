@@ -3,38 +3,37 @@
  *
  * @brief Test Program
  **/
-/*****************************************************************************
- ** Includes
- *****************************************************************************/
 
 #include "gnd/gnd-multi-platform.h"
 #include "gnd/gnd-multi-math.h"
 #include "gnd/gnd_particle_localizer.hpp"
 
 #include <stdio.h>
-#include <float.h>
 #include "ros/ros.h"
 
-#include "gnd_geometry2d_msgs/msg_pose2d_stamped.h"
-#include "gnd_geometry2d_msgs/msg_velocity2d_with_covariance_stamped.h"
-#include "gnd_particle_localizer/msg_localization_particles2d_stamped.h"
-#include "gnd_particle_localizer/msg_localization_particle_weights_stamped.h"
-
-#include "gnd/gnd_rosmsg_reader.hpp"
 #include "gnd/gnd-random.hpp"
 #include "gnd/gnd-util.h"
 
 
-// type definition
-typedef gnd_geometry2d_msgs::msg_pose2d_stamped								msg_pose_t;
-typedef gnd_geometry2d_msgs::msg_velocity2d_with_covariance_stamped			msg_motion_t;
-typedef gnd::rosutil::rosmsgs_reader_stamped<msg_motion_t>					msgreader_motion_t;
-typedef gnd_particle_localizer::msg_localization_particles2d_stamped		msg_particles_t;
-typedef gnd_particle_localizer::msg_localization_particle_weights_stamped	msg_particle_weights_t;
-typedef gnd::rosutil::rosmsgs_reader_stamped<msg_particle_weights_t>		msgreader_particle_weights_t;
+typedef gnd::particle_localizer::msg_pose_t 										msg_pose_t;
+typedef gnd::particle_localizer::msg_motion_t										msg_motion_t;
+typedef gnd::particle_localizer::msgreader_motion_t									msgreader_motion_t;
+typedef gnd::particle_localizer::msg_particles_t									msg_particles_t;
+typedef gnd::particle_localizer::particles_t										particles_t;
+typedef gnd::particle_localizer::particle_t											particle_t;
+typedef gnd::particle_localizer::msg_particle_weights_t								msg_particle_weights_t;
+typedef gnd::particle_localizer::msgreader_particle_weights_t						msgreader_particle_weights_t;
+typedef gnd::particle_localizer::particle_weights_t									particle_weights_t;
+typedef gnd::particle_localizer::particle_weight_t									particle_weight_t;
+
+typedef gnd::particle_localizer::srv_reset_particles_nd_request_t					srv_reset_particles_nd_request_t;
+typedef gnd::particle_localizer::srv_reset_particles_nd_response_t					srv_reset_particles_nd_response_t;
+typedef gnd::particle_localizer::srv_funcobj_reset_particles_normal_distribution	srv_funcobj_reset_particles_nd_t;
 
 int main(int argc, char **argv) {
+
 	gnd::particle_localizer::node_config			node_config;
+
 	{ // ---> start up, read configuration file
 		if( argc > 1 ) {
 			if( gnd::particle_localizer::fread_node_config( argv[1], &node_config ) < 0 ){
@@ -53,6 +52,8 @@ int main(int argc, char **argv) {
 		}
 	} // <--- start up, read configuration file
 
+
+
 	{ // ---> initialize rosÅ@platform
 		if( node_config.node_name.value[0] ) {
 			ros::init(argc, argv, node_config.node_name.value);
@@ -65,23 +66,25 @@ int main(int argc, char **argv) {
 	} // <--- initialize rosÅ@platform
 
 	// ros nodehandle
-	ros::NodeHandle					nodehandle;					// node handle
-	ros::NodeHandle					nodehandle_private("~");	// private node handle
+	ros::NodeHandle						nodehandle;						// node handle
+	ros::NodeHandle						nodehandle_private("~");		// private node handle
 
-	ros::Publisher					pub_pose;					// estimated pose message publisher
-	msg_pose_t						msg_pose;					// estimated pose message
+	ros::Publisher						pub_pose;						// estimated pose message publisher
+	msg_pose_t							msg_pose;						// estimated pose message
 
-	ros::Subscriber					subsc_motion;				// motion message subscriber
-	msgreader_motion_t				msgreader_motion;			// motion message reader
+	ros::Subscriber						subsc_motion;					// motion message subscriber
+	msgreader_motion_t					msgreader_motion;				// motion message reader
 
-	ros::Publisher					pub_particles;				// particles message publisher
-	msg_particles_t					msg_particles;				// particles message
+	ros::Publisher						pub_particles;					// particles message publisher
+	msg_particles_t						msg_particles;					// particles message
 
-	ros::Subscriber					subsc_particle_weights;		// particle weight message subscriber
-	msgreader_particle_weights_t	msgreader_particle_weights;	// particle weight message reader
+	ros::Subscriber						subsc_particle_weights;			// particle weight message subscriber
+	msgreader_particle_weights_t		msgreader_particle_weights;		// particle weight message reader
+
+	ros::ServiceServer					srvserv_reset_particles_nd;		// reset particles normal distribution service server
+	srv_funcobj_reset_particles_nd_t	srvfo_reset_particles_nd;		// reset particles normal distribution service function object
 
 	FILE *fp_txtlog = 0;
-
 
 	{ // ---> initialization
 		int phase = 0;
@@ -94,7 +97,8 @@ int main(int argc, char **argv) {
 			fprintf(stdout, "   %d. make estimated pose publisher\n", ++phase);
 			fprintf(stdout, "   %d. make motion subscriber\n", ++phase);
 			fprintf(stdout, "   %d. make particles publisher\n", ++phase);
-			fprintf(stdout, "   %d. make particle weights\n", ++phase);
+			fprintf(stdout, "   %d. make particle weights subscriber\n", ++phase);
+			fprintf(stdout, "   %d. make service server to reset particles\n", ++phase);
 			fprintf(stdout, "\n");
 		} // <--- show initialize phase task
 
@@ -160,7 +164,7 @@ int main(int argc, char **argv) {
 
 				msg_particles.header.stamp = time_start;
 				msg_particles.header.seq = 0;
-				msg_particles.header.frame_id = "";
+				msg_particles.header.frame_id = node_config.node_name.value;
 				msg_particles.poses.resize( node_config.number_of_particles.value );
 
 				{ // ---> initialize particles
@@ -214,6 +218,26 @@ int main(int argc, char **argv) {
 			}
 		} // <--- make particle weights subscriber
 
+		if( ros::ok() ) {
+			fprintf(stdout, "\n");
+			fprintf(stdout, " => %d. make service server to reset particles\n", ++phase);
+
+			if( !node_config.service_name_reset_particles_nd.value[0] ) {
+				fprintf(stdout, "    ... error: invalid service name\n");
+				ros::shutdown();
+			}
+			else {
+				fprintf(stdout, "    ... service name is \"%s\"\n", node_config.service_name_reset_particles_nd.value );
+
+				// service server
+				srvserv_reset_particles_nd = nodehandle.advertiseService(
+						node_config.service_name_reset_particles_nd.value,
+						&srv_funcobj_reset_particles_nd_t::callback, &srvfo_reset_particles_nd);
+				fprintf(stdout, "    ... ok\n");
+			}
+
+		}
+
 		// ---> text log file open
 		if( ros::ok() && node_config.particles_log.value[0] ) {
 			fprintf(stdout, "\n");
@@ -235,7 +259,7 @@ int main(int argc, char **argv) {
 
 
 
-	{ // ---> operation
+	if( ros::ok() ) { // ---> operation
 		ros::Rate loop_rate(1000);
 
 		double time_start = 0;
@@ -257,6 +281,8 @@ int main(int argc, char **argv) {
 		int cnt_resampling_display = 0;
 		int nline_display = 0;
 
+		int cnt_debug = 0;
+
 		{ // ---> initialize time variables
 			time_start = ros::Time::now().toSec();
 			time_current = time_start;
@@ -268,18 +294,59 @@ int main(int argc, char **argv) {
 		particle_weights_integrated.weights.resize( msg_particles.poses.size(), (float) 1.0 / msg_particles.poses.size() );
 
 		// ---> main loop
+		fprintf(stderr, " => %s main loop start\n", node_config.node_name.value);
 		while( ros::ok() ) {
 			// blocking
 			loop_rate.sleep();
 			ros::spinOnce();
 
+			// save time
 			time_current = ros::Time::now().toSec();
+
+			if( srvfo_reset_particles_nd.is_called() ) {// ---> reset particles (service called)
+				int size;
+
+				// set pose
+				srvfo_reset_particles_nd.get_average( &msg_pose.x, &msg_pose.y, &msg_pose.theta );
+
+				// resize
+				srvfo_reset_particles_nd.get_size(&size);
+				msg_particles.poses.resize( size );
+
+				{ // ---> initialize particles
+					gnd::matrix::fixed<3,3> cov;
+					gnd::matrix::fixed<3,3> ws;
+					gnd::vector::fixed_column<3> rand;
+
+					for (int i = 0; i < node_config.number_of_particles.value; i++ ) {
+						// set co-variance
+						srvfo_reset_particles_nd.get_covariance( gnd::matrix::pointer(&cov, 0, 0) );
+						// create random value according to co-variance
+						gnd::random_gaussian_mult(&cov, 3, &ws, &rand);
+						// add random value
+						msg_particles.poses[i].x = msg_pose.x + rand[0];
+						msg_particles.poses[i].y = msg_pose.y + rand[1];
+						msg_particles.poses[i].theta = msg_pose.theta + rand[2];
+					}
+				} // <--- initialize particles
+
+				particle_weights_integrated.weights.clear();
+				particle_weights_integrated.weights.resize( msg_particles.poses.size(), (float) 1.0 / msg_particles.poses.size() );
+				// have no evaluations
+				flg_resampling = false;
+
+				// clear
+				srvfo_reset_particles_nd.clear();
+
+			} // <--- reset particles (service called)
 
 
 			// ---> particle transition with motion model
-			if( msgreader_motion.copy_new( &msg_motion, msg_motion.header.seq ) == 0 ) {
+			if( msgreader_motion.copy_next( &msg_motion, msg_motion.header.seq ) == 0 ) {
 				double trans_x, trans_y, rot;
 				double cosv, sinv;
+
+				cnt_debug++;
 
 				trans_x = msg_motion.vel_x * msg_motion.measuring_period;
 				trans_y = msg_motion.vel_y * msg_motion.measuring_period;
@@ -332,31 +399,37 @@ int main(int argc, char **argv) {
 				msg_particles.header.seq++;
 				pub_particles.publish(msg_particles);
 
+				if( fp_txtlog ) {
+					fprintf(fp_txtlog, "%lf %lf %lf %lf\n", time_current - time_start, msg_pose.x, msg_pose.y, msg_pose.theta);
+					fflush(fp_txtlog);
+				}
 			} // <--- particle transition with motion model
+
 
 
 			// ---> update particle weights by measurement model
 			if( msgreader_particle_weights.copy_new(&msg_particle_weights, &msg_particle_weights.header.stamp) == 0 ) {
+				cnt_particle_weights_display++;
 
 				if( !gnd::rosutil::is_sequence_updated( particle_weights_integrated.seq_particles,  msg_particle_weights.seq_particles) ) {
 					// out of synchronization
 					cnt_weights_out_of_synchronization++;
 				}
-				else if( msg_particle_weights.weights.size() < particle_weights_integrated.weights.size() ) {
+				else if( msg_particle_weights.weights.size() != particle_weights_integrated.weights.size() ) {
 					// some particle weights are lacked
 				}
 				else {
 					// integrate
-					double sum = 0;
+					particle_weight_t sum = 0;
 					for( unsigned int i = 0; i < particle_weights_integrated.weights.size(); i++ ){
 						// integrate a particle weight
 						particle_weights_integrated.weights[i] *= msg_particle_weights.weights[i];
 
 						// zero weight exception
-						if( particle_weights_integrated.weights[i] <= 0  ) {
-							particle_weights_integrated.weights[i] = FLT_EPSILON;
+						if( particle_weights_integrated.weights[i] < gnd::particle_localizer::WEIGHT_T_EPSILON  ) {
+							particle_weights_integrated.weights[i] = gnd::particle_localizer::WEIGHT_T_EPSILON;
 						}
-						// summention
+						// sum
 						sum += particle_weights_integrated.weights[i];
 					}
 
@@ -368,6 +441,7 @@ int main(int argc, char **argv) {
 					// resampling is possible
 					flg_resampling = true;
 				}
+
 			} // <--- update particle weights by measurement model
 
 
@@ -380,33 +454,51 @@ int main(int argc, char **argv) {
 				}
 				else {
 					unsigned int i, j;
-					msg_particles_t::_poses_type copy_poses = msg_particles.poses;
+					particles_t copy_poses = msg_particles.poses;
+					particle_t  sum_poses;
+
+					sum_poses.x = 0;
+					sum_poses.y = 0;
+					sum_poses.theta = 0;
 
 					for( i = 0; i < msg_particles.poses.size(); i++ ) {
-						double key = gnd::random_uniform();	// the sum of weights is equal 1.0
+						double rand = gnd::random_uniform();	// the sum of weights is equal 1.0
 						double sum = 0;
 
 						// select a particle according to weight liner probability
-						for( j = 0; j < particle_weights_integrated.weights.size(); j++ ) {
+						// scanning loop,
+						for( j = 0; j < particle_weights_integrated.weights.size() - 1; j++ ) {
 							sum += particle_weights_integrated.weights[j];
-							if( sum > key ) break;
+							if( sum > rand ) break;
 						}
-
 						// set a new particle
 						msg_particles.poses[i] = copy_poses[j];
+						// sum
+						sum_poses.x += msg_particles.poses[i].x;
+						sum_poses.y += msg_particles.poses[i].y;
+						sum_poses.theta += msg_particles.poses[i].theta;
 					}
+
+					// correct robot pose ( selected particles average )
+					msg_pose.x = sum_poses.x / msg_particles.poses.size();
+					msg_pose.y = sum_poses.y / msg_particles.poses.size();
+					msg_pose.theta = sum_poses.theta / msg_particles.poses.size();
 
 					// update sequence when resampling
 					particle_weights_integrated.seq_particles = msg_particles.header.seq;
 					// reset weights
+					particle_weights_integrated.weights.clear();
 					particle_weights_integrated.weights.resize( msg_particles.poses.size(), (float) 1.0 / msg_particles.poses.size() );
+					// have no evaluations
 					flg_resampling = false;
+
+					cnt_resampling_display++;
 				} // <--- resampling
 
 				// next time
 				time_resampling = gnd_loop_next(time_current, time_start, node_config.cycle_resampling.value);
-			} // <--- resampling according to particle weights
 
+			} // <--- resampling according to particle weights
 
 			// ---> display status
 			if( node_config.cycle_cui_status_display.value > 0
@@ -423,27 +515,25 @@ int main(int argc, char **argv) {
 				nline_display++; ::fprintf(stderr, "\x1b[K       position :   topic name \"%s\" (publish)\n", node_config.topic_name_pose.value);
 				nline_display++; ::fprintf(stderr, "\x1b[K                :        value %8.03lf[m], %8.03lf[m], %6.01lf[deg]\n",
 						msg_pose.x, msg_pose.y, gnd_ang2deg( msg_pose.theta ) );
-				nline_display++; ::fprintf(stderr, "\x1b[K                :      publish %.01lf [Hz]\n",
-						(double) (msg_pose.header.seq - seq_pose_prevdisplay) / node_config.cycle_cui_status_display.value );
+				nline_display++; ::fprintf(stderr, "\x1b[K                :      publish %.01lf [Hz] %d\n",
+						(double) (msg_pose.header.seq - seq_pose_prevdisplay) / node_config.cycle_cui_status_display.value, cnt_debug );
 				seq_pose_prevdisplay = msg_pose.header.seq;
+				// particles (publish)
+				nline_display++; ::fprintf(stderr, "\x1b[K      particles : topic name \"%s\" (publish)\n", node_config.topic_name_particles.value );
+				nline_display++; ::fprintf(stderr, "\x1b[K                : latest seq %d\n", msg_particles.header.seq );
+				nline_display++; ::fprintf(stderr, "\x1b[K                : size %d\n", msg_particles.poses.size() );
 				// velocity (subscribe)
 				nline_display++; ::fprintf(stderr, "\x1b[K         motion :   topic name \"%s\" (subscribe)\n", node_config.topic_name_motion.value);
 				nline_display++; ::fprintf(stderr, "\x1b[K                :        value %5.02lf[m/s], %4.02lf[m/s], %4.01lf[deg/s]\n",
 						msg_motion.vel_x, msg_motion.vel_y, gnd_ang2deg( msg_motion.vel_ang ) );
-				nline_display++; ::fprintf(stderr, "\x1b[K                :  co-variance %lf %lf %lf\n", msg_motion.covariance[0], msg_motion.covariance[1],msg_motion.covariance[2] );
-				nline_display++; ::fprintf(stderr, "\x1b[K                :              %lf %lf %lf\n", msg_motion.covariance[3], msg_motion.covariance[4],msg_motion.covariance[5] );
-				nline_display++; ::fprintf(stderr, "\x1b[K                :              %lf %lf %lf\n", msg_motion.covariance[6], msg_motion.covariance[7],msg_motion.covariance[8] );
-				nline_display++; ::fprintf(stderr, "\x1b[K                :    subscribe %.01lf [Hz]\n",
-						(double) (msg_motion.header.seq - seq_motion_prevdisplay) / node_config.cycle_cui_status_display.value );
-				seq_motion_prevdisplay = msg_motion.header.seq;
+				nline_display++; ::fprintf(stderr, "\x1b[K                :        cover %5.02lf[m/s], %4.02lf[m/s], %4.01lf[deg/s]\n",
+						msg_motion.covariance[0], msg_motion.covariance[4], gnd_ang2deg(gnd_ang2deg(msg_motion.covariance[8])) );
+				nline_display++; ::fprintf(stderr, "\x1b[K                : latest seq %d\n", msg_motion.header.seq );
 				// weight (subscribe)
 				nline_display++; ::fprintf(stderr, "\x1b[K        weights :   topic name \"%s\" (subscribe)\n", node_config.topic_name_particle_weights.value);
 				nline_display++; ::fprintf(stderr, "\x1b[K                :    subscribe %d [cnt]\n", cnt_particle_weights_display );
 				// resampling
-				nline_display++; ::fprintf(stderr, "\x1b[K     resampling : count %d\n", cnt_resampling_display );
-				// exception
-				nline_display++; ::fprintf(stderr, "\x1b[K      exception : out of sync %d\n", cnt_weights_out_of_synchronization );
-
+				nline_display++; ::fprintf(stderr, "\x1b[K     resampling : count %d, out of sync %d\n", cnt_resampling_display, cnt_weights_out_of_synchronization );
 
 				nline_display++; ::fprintf(stderr, "\x1b[K\n");
 

@@ -32,7 +32,14 @@ add_message_files(
 	msg_localization_particle_weights_stamped.msg
 )
 
-## Generate added messages and services with any dependencies listed here
+# Generate service in the 'srv' folder
+add_service_files(
+  DIRECTORY srv
+  FILES
+	srv_reset_particles_normal_distribution.srv
+)
+
+# Generate added messages and services with any dependencies listed here
 generate_messages(
   DEPENDENCIES
   std_msgs geometry_msgs
@@ -45,8 +52,15 @@ install(DIRECTORY include/
 
 catkin_package(
   INCLUDE_DIRS include
-  LIBRARIES gnd_particle_localizer
-  CATKIN_DEPENDS roscpp std_msgs geometry_msgs gnd_geometry2d_msgs gnd_rosutil gndlib message_runtime
+#  LIBRARIES gnd_particle_localizer
+  CATKIN_DEPENDS
+	roscpp
+	std_msgs
+	geometry_msgs
+	gnd_geometry2d_msgs
+	gnd_rosutil
+	gndlib
+	message_runtime
 )
 
 include_directories(include ${catkin_INCLUDE_DIRS})

@@ -63,6 +63,13 @@ namespace gnd {
 				"velocity",
 				"motion model topic name, (subscribe, type:gnd_geometry2d_msgs/msg_velocity2d_with_covariance_stamped)"
 		};
+
+		static const param_string_t Default_service_name_reset_particles_nd = {
+				"service-reset-particles-normal-distribution",
+				"reset_particles_nd",
+				"service name, (gnd_particle_localizer/srv_reset_particles_normal_distribution)"
+		};
+
 		// <--- ros communication
 
 		// ---> initial parameter
@@ -105,9 +112,9 @@ namespace gnd {
 		};
 
 		static const param_string_t Default_particles_log = {
-				"particles-log",
+				"localization-log-txt",
 				"",
-				"particles log(text file)"
+				"localization log(text file)"
 		};
 		// <--- debug option
 	}
@@ -174,6 +181,7 @@ namespace gnd {
 			param_string_t topic_name_particles;					///< particles topic name
 			param_string_t topic_name_particle_weights;				///< particle weights topic name
 			param_string_t topic_name_motion;						///< motion model topic name
+			param_string_t service_name_reset_particles_nd;			///< reset particle service name
 			// initial position option
 			param_pose_t initial_pose;								///< mean of estimated initial pose
 			param_pose_covariance_t error_covariance_initial_pose;	///< error co-variance of initial pose
@@ -208,20 +216,21 @@ namespace gnd {
 			gnd_assert(!p, -1, "invalid null pointer argument\n" );
 
 			// ros communication parameter
-			memcpy( &p->node_name,						&Default_node_name,						sizeof(Default_node_name) );
-			memcpy( &p->topic_name_pose,				&Default_topic_name_pose,				sizeof(Default_topic_name_pose) );
-			memcpy( &p->topic_name_particles,			&Default_topic_name_particles,			sizeof(Default_topic_name_particles) );
-			memcpy( &p->topic_name_particle_weights,	&Default_topic_name_particle_weight,	sizeof(Default_topic_name_particle_weight) );
-			memcpy( &p->topic_name_motion,				&Default_topic_name_motion,				sizeof(Default_topic_name_motion) );
+			memcpy( &p->node_name,						&Default_node_name,							sizeof(Default_node_name) );
+			memcpy( &p->topic_name_pose,				&Default_topic_name_pose,					sizeof(Default_topic_name_pose) );
+			memcpy( &p->topic_name_particles,			&Default_topic_name_particles,				sizeof(Default_topic_name_particles) );
+			memcpy( &p->topic_name_particle_weights,	&Default_topic_name_particle_weight,		sizeof(Default_topic_name_particle_weight) );
+			memcpy( &p->topic_name_motion,				&Default_topic_name_motion,					sizeof(Default_topic_name_motion) );
+			memcpy( &p->service_name_reset_particles_nd,&Default_service_name_reset_particles_nd,	sizeof(Default_service_name_reset_particles_nd) );
 			// initial pose option
-			memcpy( &p->initial_pose,					&Default_initial_pose,					sizeof(Default_initial_pose) );
-			memcpy( &p->error_covariance_initial_pose,	&Default_error_covariance_initial_pose,	sizeof(Default_error_covariance_initial_pose) );
+			memcpy( &p->initial_pose,					&Default_initial_pose,						sizeof(Default_initial_pose) );
+			memcpy( &p->error_covariance_initial_pose,	&Default_error_covariance_initial_pose,		sizeof(Default_error_covariance_initial_pose) );
 			// particle filter parameter
-			memcpy( &p->number_of_particles,			&Default_number_of_particles,			sizeof(Default_number_of_particles) );
-			memcpy( &p->cycle_resampling,				&Default_cycle_resampling,				sizeof(Default_cycle_resampling) );
+			memcpy( &p->number_of_particles,			&Default_number_of_particles,				sizeof(Default_number_of_particles) );
+			memcpy( &p->cycle_resampling,				&Default_cycle_resampling,					sizeof(Default_cycle_resampling) );
 			// debug option
-			memcpy( &p->cycle_cui_status_display,		&Default_cycle_cui_status_display,		sizeof(Default_cycle_cui_status_display) );
-			memcpy( &p->particles_log,					&Default_particles_log,					sizeof(Default_particles_log) );
+			memcpy( &p->cycle_cui_status_display,		&Default_cycle_cui_status_display,			sizeof(Default_cycle_cui_status_display) );
+			memcpy( &p->particles_log,					&Default_particles_log,						sizeof(Default_particles_log) );
 			return 0;
 		}
 
@@ -260,6 +269,7 @@ namespace gnd {
 			gnd::conf::get_parameter( src, &dest->topic_name_particles );
 			gnd::conf::get_parameter( src, &dest->topic_name_particle_weights );
 			gnd::conf::get_parameter( src, &dest->topic_name_motion );
+			gnd::conf::get_parameter( src, &dest->service_name_reset_particles_nd );
 			// initial pose option
 			gnd::conf::get_parameter( src, &dest->initial_pose );
 			gnd::conf::get_parameter( src, &dest->error_covariance_initial_pose );
@@ -310,6 +320,7 @@ namespace gnd {
 			gnd::conf::set_parameter( dest, &src->topic_name_particles );
 			gnd::conf::set_parameter( dest, &src->topic_name_particle_weights );
 			gnd::conf::set_parameter( dest, &src->topic_name_motion );
+			gnd::conf::set_parameter( dest, &src->service_name_reset_particles_nd );
 			// initial pose option
 			gnd::conf::set_parameter( dest, &src->initial_pose );
 			gnd::conf::set_parameter( dest, &src->error_covariance_initial_pose );

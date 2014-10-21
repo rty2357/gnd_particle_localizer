@@ -6,4 +6,3 @@ uint32 seq_particles
 
 # particles weight
 float32[] weights
-
