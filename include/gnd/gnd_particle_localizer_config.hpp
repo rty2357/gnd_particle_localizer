@@ -95,20 +95,20 @@ namespace gnd {
 				"the number of particles"
 		};
 
-		static const param_double_t Default_cycle_resampling = {
-				"cycle-resampling",
-				gnd_msec2sec(1000),
-				"cycle to resampling"
+		static const param_double_t Default_period_resampling = {
+				"period-resampling",
+				gnd_sec2time(1.0),
+				"period to resampling"
 		};
 		// <--- particle filter parameter
 
 
 
 		// ---> debug option
-		static const param_double_t Default_cycle_cui_status_display = {
-				"cycle-status-display",
+		static const param_double_t Default_period_cui_status_display = {
+				"period-status-display",
 				0.0,
-				"cycle to display the node status in standard output [msec]. [note] it need ansi color code. [note] if this value is less than or equal 0, don't display"
+				"period to display the node status in standard output [msec]. [note] it need ansi color code. [note] if this value is less than or equal 0, don't display"
 		};
 
 		static const param_string_t Default_particles_log = {
@@ -187,9 +187,9 @@ namespace gnd {
 			param_pose_covariance_t error_covariance_initial_pose;	///< error co-variance of initial pose
 			// particle filter parameter
 			param_int_t number_of_particles;						///< the number of particles
-			param_double_t cycle_resampling;						///< cycle to resampling
+			param_double_t period_resampling;						///< cycle to resampling
 			// debug option
-			param_double_t cycle_cui_status_display;				///< no device mode for debug
+			param_double_t period_cui_status_display;				///< no device mode for debug
 			param_string_t particles_log;							///< particles log file
 		};
 
@@ -227,9 +227,9 @@ namespace gnd {
 			memcpy( &p->error_covariance_initial_pose,	&Default_error_covariance_initial_pose,		sizeof(Default_error_covariance_initial_pose) );
 			// particle filter parameter
 			memcpy( &p->number_of_particles,			&Default_number_of_particles,				sizeof(Default_number_of_particles) );
-			memcpy( &p->cycle_resampling,				&Default_cycle_resampling,					sizeof(Default_cycle_resampling) );
+			memcpy( &p->period_resampling,				&Default_period_resampling,					sizeof(Default_period_resampling) );
 			// debug option
-			memcpy( &p->cycle_cui_status_display,		&Default_cycle_cui_status_display,			sizeof(Default_cycle_cui_status_display) );
+			memcpy( &p->period_cui_status_display,		&Default_period_cui_status_display,			sizeof(Default_period_cui_status_display) );
 			memcpy( &p->particles_log,					&Default_particles_log,						sizeof(Default_particles_log) );
 			return 0;
 		}
@@ -275,9 +275,9 @@ namespace gnd {
 			gnd::conf::get_parameter( src, &dest->error_covariance_initial_pose );
 			// particle filter parameter
 			gnd::conf::get_parameter( src, &dest->number_of_particles );
-			gnd::conf::get_parameter( src, &dest->cycle_resampling );
+			gnd::conf::get_parameter( src, &dest->period_resampling );
 			// debug option
-			gnd::conf::get_parameter( src, &dest->cycle_cui_status_display );
+			gnd::conf::get_parameter( src, &dest->period_cui_status_display );
 			gnd::conf::get_parameter( src, &dest->particles_log );
 
 			return 0;
@@ -326,9 +326,9 @@ namespace gnd {
 			gnd::conf::set_parameter( dest, &src->error_covariance_initial_pose );
 			// particle filter parameter
 			gnd::conf::set_parameter( dest, &src->number_of_particles );
-			gnd::conf::set_parameter( dest, &src->cycle_resampling );
+			gnd::conf::set_parameter( dest, &src->period_resampling );
 			// debug option
-			gnd::conf::set_parameter( dest, &src->cycle_cui_status_display );
+			gnd::conf::set_parameter( dest, &src->period_cui_status_display );
 			gnd::conf::set_parameter( dest, &src->particles_log );
 
 			return 0;

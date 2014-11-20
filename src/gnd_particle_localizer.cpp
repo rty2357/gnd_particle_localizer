@@ -166,6 +166,7 @@ int main(int argc, char **argv) {
 				msg_particles.header.seq = 0;
 				msg_particles.header.frame_id = node_config.node_name.value;
 				msg_particles.poses.resize( node_config.number_of_particles.value );
+				msg_particles.schedule_resampling = time_start;
 
 				{ // ---> initialize particles
 					msg_particles_t::_poses_type::value_type init_particle;
@@ -264,7 +265,7 @@ int main(int argc, char **argv) {
 
 		double time_start = 0;
 		double time_current = 0;
-		double time_resampling = 0;
+		double schedule_resampling = 0;
 		double time_display = 0;
 
 		msg_motion_t msg_motion;
@@ -286,8 +287,10 @@ int main(int argc, char **argv) {
 		{ // ---> initialize time variables
 			time_start = ros::Time::now().toSec();
 			time_current = time_start;
-			time_resampling = time_start;
+			schedule_resampling = time_start;
 			time_display = time_start;
+
+			msg_particles.schedule_resampling.fromSec(schedule_resampling);
 		} // <--- initialize time variables
 
 		// initialize integrated particle weights storage
@@ -447,7 +450,7 @@ int main(int argc, char **argv) {
 
 
 			// ---> resampling according to particle weights
-			if( time_current > time_resampling ) {
+			if( time_current > schedule_resampling ) {
 				// ---> resampling
 				if( !flg_resampling ) {
 					// particles are not evaluated
@@ -485,7 +488,7 @@ int main(int argc, char **argv) {
 					msg_pose.theta = sum_poses.theta / msg_particles.poses.size();
 
 					// update sequence when resampling
-					particle_weights_integrated.seq_particles = msg_particles.header.seq;
+					particle_weights_integrated.seq_particles = msg_particles.header.seq + 1;
 					// reset weights
 					particle_weights_integrated.weights.clear();
 					particle_weights_integrated.weights.resize( msg_particles.poses.size(), (float) 1.0 / msg_particles.poses.size() );
@@ -495,13 +498,13 @@ int main(int argc, char **argv) {
 					cnt_resampling_display++;
 				} // <--- resampling
 
-				// next time
-				time_resampling = gnd_loop_next(time_current, time_start, node_config.cycle_resampling.value);
-
+				// next schedule
+				schedule_resampling = gnd_loop_next(time_current, time_start, node_config.period_resampling.value);
+				msg_particles.schedule_resampling.fromSec(schedule_resampling);
 			} // <--- resampling according to particle weights
 
 			// ---> display status
-			if( node_config.cycle_cui_status_display.value > 0
+			if( node_config.period_cui_status_display.value > 0
 					&& time_current > time_display ) {
 
 				if( nline_display ) {
@@ -516,7 +519,7 @@ int main(int argc, char **argv) {
 				nline_display++; ::fprintf(stderr, "\x1b[K                :        value %8.03lf[m], %8.03lf[m], %6.01lf[deg]\n",
 						msg_pose.x, msg_pose.y, gnd_ang2deg( msg_pose.theta ) );
 				nline_display++; ::fprintf(stderr, "\x1b[K                :      publish %.01lf [Hz] %d\n",
-						(double) (msg_pose.header.seq - seq_pose_prevdisplay) / node_config.cycle_cui_status_display.value, cnt_debug );
+						(double) (msg_pose.header.seq - seq_pose_prevdisplay) / node_config.period_cui_status_display.value, cnt_debug );
 				seq_pose_prevdisplay = msg_pose.header.seq;
 				// particles (publish)
 				nline_display++; ::fprintf(stderr, "\x1b[K      particles : topic name \"%s\" (publish)\n", node_config.topic_name_particles.value );
@@ -526,8 +529,8 @@ int main(int argc, char **argv) {
 				nline_display++; ::fprintf(stderr, "\x1b[K         motion :   topic name \"%s\" (subscribe)\n", node_config.topic_name_motion.value);
 				nline_display++; ::fprintf(stderr, "\x1b[K                :        value %5.02lf[m/s], %4.02lf[m/s], %4.01lf[deg/s]\n",
 						msg_motion.vel_x, msg_motion.vel_y, gnd_ang2deg( msg_motion.vel_ang ) );
-				nline_display++; ::fprintf(stderr, "\x1b[K                :        cover %5.02lf[m/s], %4.02lf[m/s], %4.01lf[deg/s]\n",
-						msg_motion.covariance[0], msg_motion.covariance[4], gnd_ang2deg(gnd_ang2deg(msg_motion.covariance[8])) );
+				nline_display++; ::fprintf(stderr, "\x1b[K                : standard err %.02lf[m/s], %.02lf[m/s], %4.01lf[deg/s]\n",
+						sqrt(msg_motion.covariance[0]), sqrt(msg_motion.covariance[4]), gnd_ang2deg( sqrt(msg_motion.covariance[8])) );
 				nline_display++; ::fprintf(stderr, "\x1b[K                : latest seq %d\n", msg_motion.header.seq );
 				// weight (subscribe)
 				nline_display++; ::fprintf(stderr, "\x1b[K        weights :   topic name \"%s\" (subscribe)\n", node_config.topic_name_particle_weights.value);
@@ -538,7 +541,7 @@ int main(int argc, char **argv) {
 				nline_display++; ::fprintf(stderr, "\x1b[K\n");
 
 				// update
-				time_display = gnd_loop_next(time_current, time_start, node_config.cycle_cui_status_display.value );
+				time_display = gnd_loop_next(time_current, time_start, node_config.period_cui_status_display.value );
 
 			} // <--- display status
 		} // <--- main loop
