@@ -14,7 +14,7 @@ find_package(catkin
 	roscpp
 	std_msgs
 	geometry_msgs
-	gnd_geometry2d_msgs
+	gnd_msgs
 	gnd_rosutil
 	gndlib
 	message_generation
@@ -28,8 +28,8 @@ find_package(catkin
 add_message_files(
   DIRECTORY msg
   FILES
-	msg_localization_particles2d_stamped.msg
-	msg_localization_particle_weights_stamped.msg
+	msg_particles_pose2d_stamped.msg
+	msg_particle_weights_stamped.msg
 )
 
 # Generate service in the 'srv' folder
@@ -42,7 +42,8 @@ add_service_files(
 # Generate added messages and services with any dependencies listed here
 generate_messages(
   DEPENDENCIES
-  std_msgs geometry_msgs
+  std_msgs
+  geometry_msgs
 )
 install(DIRECTORY include/
   DESTINATION ${CATKIN_PACKAGE_INCLUDE_DESTINATION}
@@ -57,7 +58,7 @@ catkin_package(
 	roscpp
 	std_msgs
 	geometry_msgs
-	gnd_geometry2d_msgs
+	gnd_msgs
 	gnd_rosutil
 	gndlib
 	message_runtime

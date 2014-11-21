@@ -16,10 +16,10 @@
 #define gnd_particle_localizer_API
 #endif
 
-#include "gnd_geometry2d_msgs/msg_pose2d_stamped.h"
-#include "gnd_geometry2d_msgs/msg_velocity2d_with_covariance_stamped.h"
-#include "gnd_particle_localizer/msg_localization_particles2d_stamped.h"
-#include "gnd_particle_localizer/msg_localization_particle_weights_stamped.h"
+#include "gnd_msgs/msg_pose2d_stamped.h"
+#include "gnd_msgs/msg_velocity2d_with_covariance_stamped.h"
+#include "gnd_particle_localizer/msg_particles_pose2d_stamped.h"
+#include "gnd_particle_localizer/msg_particle_weights_stamped.h"
 #include "gnd_particle_localizer/srv_reset_particles_normal_distribution.h"
 
 #include "gnd/gnd_rosmsg_reader.hpp"
@@ -37,13 +37,13 @@ namespace gnd {
 // ---> message type definition
 namespace gnd {
 	namespace particle_localizer {
-		typedef gnd_geometry2d_msgs::msg_pose2d_stamped									msg_pose_t;
-		typedef gnd_geometry2d_msgs::msg_velocity2d_with_covariance_stamped				msg_motion_t;
+		typedef gnd_msgs::msg_pose2d_stamped											msg_pose_t;
+		typedef gnd_msgs::msg_velocity2d_with_covariance_stamped						msg_motion_t;
 		typedef gnd::rosutil::rosmsgs_reader_stamped<msg_motion_t>						msgreader_motion_t;
-		typedef gnd_particle_localizer::msg_localization_particles2d_stamped			msg_particles_t;
+		typedef gnd_particle_localizer::msg_particles_pose2d_stamped					msg_particles_t;
 		typedef msg_particles_t::_poses_type											particles_t;
 		typedef particles_t::value_type													particle_t;
-		typedef gnd_particle_localizer::msg_localization_particle_weights_stamped		msg_particle_weights_t;
+		typedef gnd_particle_localizer::msg_particle_weights_stamped					msg_particle_weights_t;
 		typedef gnd::rosutil::rosmsgs_reader_stamped<msg_particle_weights_t>			msgreader_particle_weights_t;
 		typedef msg_particle_weights_t::_weights_type									particle_weights_t;
 		typedef particle_weights_t::value_type											particle_weight_t;
