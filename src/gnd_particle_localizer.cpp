@@ -114,7 +114,7 @@ int main(int argc, char **argv) {
 			}
 			else {
 				fprintf(stdout, "    ... topic name is \"%s\"\n", node_config.topic_name_pose.value );
-				pub_pose = nodehandle.advertise<msg_pose_t>(node_config.topic_name_pose.value, 1000 );
+				pub_pose = nodehandle.advertise<msg_pose_t>(node_config.topic_name_pose.value, 10 );
 
 				msg_pose.header.stamp = time_start;
 				msg_pose.header.seq = 0;
@@ -142,7 +142,7 @@ int main(int argc, char **argv) {
 				msgreader_motion.allocate(100);
 
 				// subscribe
-				subsc_motion = nodehandle.subscribe(node_config.topic_name_motion.value, 1000,
+				subsc_motion = nodehandle.subscribe(node_config.topic_name_motion.value, 10,
 						&msgreader_motion_t::rosmsg_read,
 						msgreader_motion.reader_pointer() );
 				fprintf(stdout, "    ... ok\n");
@@ -160,7 +160,7 @@ int main(int argc, char **argv) {
 			}
 			else {
 				fprintf(stdout, "    ... topic name is \"%s\"\n", node_config.topic_name_particles.value );
-				pub_particles = nodehandle.advertise<msg_particles_t>(node_config.topic_name_particles.value, 1000 );
+				pub_particles = nodehandle.advertise<msg_particles_t>(node_config.topic_name_particles.value, 1 );
 
 				msg_particles.header.stamp = time_start;
 				msg_particles.header.seq = 0;
@@ -212,7 +212,7 @@ int main(int argc, char **argv) {
 				msgreader_particle_weights.allocate(100);
 
 				// subscribe
-				subsc_particle_weights = nodehandle.subscribe(node_config.topic_name_particle_weights.value, 200,
+				subsc_particle_weights = nodehandle.subscribe(node_config.topic_name_particle_weights.value, 10,
 						&msgreader_particle_weights_t::rosmsg_read,
 						msgreader_particle_weights.reader_pointer() );
 				fprintf(stdout, "    ... ok\n");
