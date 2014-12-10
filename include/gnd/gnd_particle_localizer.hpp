@@ -23,6 +23,7 @@
 #include "gnd_particle_localizer/srv_reset_particles_normal_distribution.h"
 
 #include "gnd/gnd_rosmsg_reader.hpp"
+#include "gnd/gnd-vector-base.hpp"
 
 #include <float.h>
 
@@ -30,6 +31,7 @@
 namespace gnd {
 	namespace particle_localizer {
 		class srv_funcobj_reset_particles_normal_distribution;
+
 	}
 } // <--- type declaration ( callback function object )
 
@@ -47,6 +49,7 @@ namespace gnd {
 		typedef gnd::rosutil::rosmsgs_reader_stamped<msg_particle_weights_t>			msgreader_particle_weights_t;
 		typedef msg_particle_weights_t::_weights_type									particle_weights_t;
 		typedef particle_weights_t::value_type											particle_weight_t;
+		typedef gnd::vector::fixed_column<3> 											systematic_error_ratio_t;
 
 		typedef gnd_particle_localizer::srv_reset_particles_normal_distributionRequest	srv_reset_particles_nd_request_t;
 		typedef gnd_particle_localizer::srv_reset_particles_normal_distributionResponse srv_reset_particles_nd_response_t;

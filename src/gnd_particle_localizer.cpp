@@ -21,6 +21,8 @@ typedef gnd::particle_localizer::msgreader_motion_t									msgreader_motion_t;
 typedef gnd::particle_localizer::msg_particles_t									msg_particles_t;
 typedef gnd::particle_localizer::particles_t										particles_t;
 typedef gnd::particle_localizer::particle_t											particle_t;
+typedef gnd::particle_localizer::systematic_error_ratio_t							particle_systematic_error_ratio_t;
+typedef std::vector<gnd::particle_localizer::systematic_error_ratio_t>				particle_systematic_error_ratios_t;
 typedef gnd::particle_localizer::msg_particle_weights_t								msg_particle_weights_t;
 typedef gnd::particle_localizer::msgreader_particle_weights_t						msgreader_particle_weights_t;
 typedef gnd::particle_localizer::particle_weights_t									particle_weights_t;
@@ -83,6 +85,8 @@ int main(int argc, char **argv) {
 
 	ros::ServiceServer					srvserv_reset_particles_nd;		// reset particles normal distribution service server
 	srv_funcobj_reset_particles_nd_t	srvfo_reset_particles_nd;		// reset particles normal distribution service function object
+
+	particle_systematic_error_ratios_t systematic_error_ratio_depened_on_translate;
 
 	FILE *fp_txtlog = 0;
 
@@ -168,6 +172,9 @@ int main(int argc, char **argv) {
 				msg_particles.poses.resize( node_config.number_of_particles.value );
 				msg_particles.schedule_resampling = time_start;
 
+				// systematic error
+				systematic_error_ratio_depened_on_translate.resize(node_config.number_of_particles.value);
+
 				{ // ---> initialize particles
 					msg_particles_t::_poses_type::value_type init_particle;
 					gnd::matrix::fixed<3,3> cov;
@@ -190,6 +197,10 @@ int main(int argc, char **argv) {
 						init_particle.theta = node_config.initial_pose.value[2] + pos[2];
 						// set
 						msg_particles.poses[i] = init_particle;
+
+						systematic_error_ratio_depened_on_translate[i][0] = 0;
+						systematic_error_ratio_depened_on_translate[i][1] = 0;
+						systematic_error_ratio_depened_on_translate[i][2] = 0;
 					}
 				} // <--- initialize particles
 
@@ -326,6 +337,7 @@ int main(int argc, char **argv) {
 						srvfo_reset_particles_nd.get_covariance( gnd::matrix::pointer(&cov, 0, 0) );
 						// create random value according to co-variance
 						gnd::random_gaussian_mult(&cov, 3, &ws, &rand);
+
 						// add random value
 						msg_particles.poses[i].x = msg_pose.x + rand[0];
 						msg_particles.poses[i].y = msg_pose.y + rand[1];
@@ -364,6 +376,7 @@ int main(int argc, char **argv) {
 
 				{ // ---> particles transition
 					gnd::matrix::fixed<3,3> error_covariance_vel;
+
 					error_covariance_vel[0][0] = msg_motion.covariance[0];
 					error_covariance_vel[0][1] = error_covariance_vel[1][0] = msg_motion.covariance[1];
 					error_covariance_vel[0][2] = error_covariance_vel[2][0] = msg_motion.covariance[2];
@@ -373,14 +386,18 @@ int main(int argc, char **argv) {
 
 					for( unsigned int i = 0; i < msg_particles.poses.size(); i++ ) {
 						gnd::matrix::fixed<3,3> cp_error_cov, ws;
-						gnd::vector::fixed_column<3> error_vel;
+						gnd::vector::fixed_column<3> rand_err;
+						gnd::vector::fixed_column<3> sys_err;
 
-						// apply the velocity error with random value
+						// random error
 						gnd::matrix::copy(&cp_error_cov, &error_covariance_vel);
-						gnd::random_gaussian_mult(&cp_error_cov, 3, &ws, &error_vel);
-						trans_x = ( msg_motion.vel_x + error_vel[0] ) * msg_motion.measuring_period;
-						trans_y = ( msg_motion.vel_y + error_vel[1] ) * msg_motion.measuring_period;
-						rot = ( msg_motion.vel_ang + error_vel[2] ) * msg_motion.measuring_period;
+						gnd::random_gaussian_mult(&cp_error_cov, 3, &ws, &rand_err);
+						// systematic error
+						gnd::matrix::scalar_prod( &systematic_error_ratio_depened_on_translate[i], msg_motion.vel_x, &sys_err );
+
+						trans_x = ( msg_motion.vel_x + rand_err[0] + sys_err[0]) * msg_motion.measuring_period;
+						trans_y = ( msg_motion.vel_y + rand_err[1] + sys_err[1] ) * msg_motion.measuring_period;
+						rot = ( msg_motion.vel_ang + rand_err[2] + sys_err[2] ) * msg_motion.measuring_period;
 
 						// pose calculation
 						cosv = cos(msg_particles.poses[i].theta);
@@ -458,6 +475,7 @@ int main(int argc, char **argv) {
 				else {
 					unsigned int i, j;
 					particles_t copy_poses = msg_particles.poses;
+					particle_systematic_error_ratios_t copy_syserr = systematic_error_ratio_depened_on_translate;
 					particle_t  sum_poses;
 
 					sum_poses.x = 0;
@@ -474,12 +492,27 @@ int main(int argc, char **argv) {
 							sum += particle_weights_integrated.weights[j];
 							if( sum > rand ) break;
 						}
-						// set a new particle
-						msg_particles.poses[i] = copy_poses[j];
-						// sum
-						sum_poses.x += msg_particles.poses[i].x;
-						sum_poses.y += msg_particles.poses[i].y;
-						sum_poses.theta += msg_particles.poses[i].theta;
+
+						{ // ---> set a new particle
+							msg_particles.poses[i] = copy_poses[j];
+							// sum
+							sum_poses.x += msg_particles.poses[i].x;
+							sum_poses.y += msg_particles.poses[i].y;
+							sum_poses.theta += msg_particles.poses[i].theta;
+						} // <--- set a new particle
+
+						{ // ---> set systematic error ratio
+							if( node_config.probability_change_systematic_error.value < gnd::random_uniform() ) {
+								// not change
+								systematic_error_ratio_depened_on_translate[i] = copy_syserr[j];
+							}
+							else {
+								// change
+								systematic_error_ratio_depened_on_translate[i][0] = node_config.standard_systematic_error.value[0] * gnd::random_gaussian(1.0);
+								systematic_error_ratio_depened_on_translate[i][1] = node_config.standard_systematic_error.value[1] * gnd::random_gaussian(1.0);
+								systematic_error_ratio_depened_on_translate[i][2] = node_config.standard_systematic_error.value[2] * gnd::random_gaussian(1.0);
+							}
+						} // <--- set systematic error ratio
 					}
 
 					// correct robot pose ( selected particles average )
@@ -536,7 +569,7 @@ int main(int argc, char **argv) {
 				nline_display++; ::fprintf(stderr, "\x1b[K        weights :   topic name \"%s\" (subscribe)\n", node_config.topic_name_particle_weights.value);
 				nline_display++; ::fprintf(stderr, "\x1b[K                :    subscribe %d [cnt]\n", cnt_particle_weights_display );
 				// resampling
-				nline_display++; ::fprintf(stderr, "\x1b[K     resampling : count %d, out of sync %d\n", cnt_resampling_display, cnt_weights_out_of_synchronization );
+				nline_display++; ::fprintf(stderr, "\x1b[K     resampling : count %d, out of sync %d, period %.02lf\n", cnt_resampling_display, cnt_weights_out_of_synchronization, node_config.period_resampling.value );
 
 				nline_display++; ::fprintf(stderr, "\x1b[K\n");
 

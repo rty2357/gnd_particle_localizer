@@ -19,6 +19,7 @@ namespace gnd {
 
 		typedef gnd::conf::parameter_array<char, 256> param_string_t;
 		typedef gnd::conf::parameter_array<double, 3> param_pose_t;
+		typedef gnd::conf::parameter_array<double, 3> param_systematic_error_t;
 		typedef gnd::conf::parameter_array<double, 9> param_pose_covariance_t;
 		typedef gnd::conf::param_int param_int_t;
 		typedef gnd::conf::param_long param_long_t;
@@ -99,6 +100,18 @@ namespace gnd {
 				"period-resampling",
 				gnd_sec2time(1.0),
 				"period to resampling"
+		};
+
+		static const param_systematic_error_t Default_standard_systematic_error = {
+				"standard-systematic_error",
+				{0.025, 0.01, gnd_deg2ang(0.75)},
+				"standard systematic error per translate 1.0 m"
+		};
+
+		static const param_double_t Default_probability_change_systematic_error = {
+				"probability-change-systematic_error",
+				0.5,
+				"probability of change systematic error parameter in resmapling"
 		};
 		// <--- particle filter parameter
 
@@ -188,6 +201,8 @@ namespace gnd {
 			// particle filter parameter
 			param_int_t number_of_particles;						///< the number of particles
 			param_double_t period_resampling;						///< cycle to resampling
+			param_systematic_error_t standard_systematic_error;		///<
+			param_double_t probability_change_systematic_error;
 			// debug option
 			param_double_t period_cui_status_display;				///< no device mode for debug
 			param_string_t particles_log;							///< particles log file
@@ -216,21 +231,25 @@ namespace gnd {
 			gnd_assert(!p, -1, "invalid null pointer argument\n" );
 
 			// ros communication parameter
-			memcpy( &p->node_name,						&Default_node_name,							sizeof(Default_node_name) );
-			memcpy( &p->topic_name_pose,				&Default_topic_name_pose,					sizeof(Default_topic_name_pose) );
-			memcpy( &p->topic_name_particles,			&Default_topic_name_particles,				sizeof(Default_topic_name_particles) );
-			memcpy( &p->topic_name_particle_weights,	&Default_topic_name_particle_weight,		sizeof(Default_topic_name_particle_weight) );
-			memcpy( &p->topic_name_motion,				&Default_topic_name_motion,					sizeof(Default_topic_name_motion) );
-			memcpy( &p->service_name_reset_particles_nd,&Default_service_name_reset_particles_nd,	sizeof(Default_service_name_reset_particles_nd) );
+			memcpy( &p->node_name,							&Default_node_name,								sizeof(Default_node_name) );
+			memcpy( &p->topic_name_pose,					&Default_topic_name_pose,						sizeof(Default_topic_name_pose) );
+			memcpy( &p->topic_name_particles,				&Default_topic_name_particles,					sizeof(Default_topic_name_particles) );
+			memcpy( &p->topic_name_particle_weights,		&Default_topic_name_particle_weight,			sizeof(Default_topic_name_particle_weight) );
+			memcpy( &p->topic_name_motion,					&Default_topic_name_motion,						sizeof(Default_topic_name_motion) );
+			memcpy( &p->service_name_reset_particles_nd,	&Default_service_name_reset_particles_nd,		sizeof(Default_service_name_reset_particles_nd) );
 			// initial pose option
-			memcpy( &p->initial_pose,					&Default_initial_pose,						sizeof(Default_initial_pose) );
-			memcpy( &p->error_covariance_initial_pose,	&Default_error_covariance_initial_pose,		sizeof(Default_error_covariance_initial_pose) );
+			memcpy( &p->initial_pose,						&Default_initial_pose,							sizeof(Default_initial_pose) );
+			memcpy( &p->error_covariance_initial_pose,		&Default_error_covariance_initial_pose,			sizeof(Default_error_covariance_initial_pose) );
 			// particle filter parameter
-			memcpy( &p->number_of_particles,			&Default_number_of_particles,				sizeof(Default_number_of_particles) );
-			memcpy( &p->period_resampling,				&Default_period_resampling,					sizeof(Default_period_resampling) );
+			memcpy( &p->number_of_particles,				&Default_number_of_particles,					sizeof(Default_number_of_particles) );
+			memcpy( &p->period_resampling,					&Default_period_resampling,						sizeof(Default_period_resampling) );
+			memcpy( &p->standard_systematic_error,			&Default_standard_systematic_error,				sizeof(Default_standard_systematic_error) );
+			memcpy( &p->probability_change_systematic_error,&Default_probability_change_systematic_error,	sizeof(Default_probability_change_systematic_error) );
+
+
 			// debug option
-			memcpy( &p->period_cui_status_display,		&Default_period_cui_status_display,			sizeof(Default_period_cui_status_display) );
-			memcpy( &p->particles_log,					&Default_particles_log,						sizeof(Default_particles_log) );
+			memcpy( &p->period_cui_status_display,			&Default_period_cui_status_display,				sizeof(Default_period_cui_status_display) );
+			memcpy( &p->particles_log,						&Default_particles_log,							sizeof(Default_particles_log) );
 			return 0;
 		}
 
@@ -273,6 +292,10 @@ namespace gnd {
 			// initial pose option
 			gnd::conf::get_parameter( src, &dest->initial_pose );
 			gnd::conf::get_parameter( src, &dest->error_covariance_initial_pose );
+			if( gnd::conf::get_parameter( src, &dest->standard_systematic_error ) >= 3) {
+				dest->standard_systematic_error.value[2] = gnd_deg2ang(dest->standard_systematic_error.value[2]);
+			}
+			gnd::conf::get_parameter( src, &dest->probability_change_systematic_error );
 			// particle filter parameter
 			gnd::conf::get_parameter( src, &dest->number_of_particles );
 			gnd::conf::get_parameter( src, &dest->period_resampling );
@@ -327,6 +350,10 @@ namespace gnd {
 			// particle filter parameter
 			gnd::conf::set_parameter( dest, &src->number_of_particles );
 			gnd::conf::set_parameter( dest, &src->period_resampling );
+			src->standard_systematic_error.value[2] = gnd_ang2deg(src->standard_systematic_error.value[2]);
+			gnd::conf::set_parameter( dest, &src->standard_systematic_error );
+			src->standard_systematic_error.value[2] = gnd_deg2ang(src->standard_systematic_error.value[2]);
+			gnd::conf::set_parameter( dest, &src->probability_change_systematic_error );
 			// debug option
 			gnd::conf::set_parameter( dest, &src->period_cui_status_display );
 			gnd::conf::set_parameter( dest, &src->particles_log );
