@@ -89,7 +89,7 @@ link_directories(${catkin_LIBRARY_DIRS})
 
 add_executable(gnd_particle_localizer src/gnd_particle_localizer.cpp)
 target_link_libraries(gnd_particle_localizer ${catkin_LIBRARIES})
-add_dependencies(gnd_particle_localizer gnd_particle_localizer_generate_messages_cpp)
+add_dependencies(gnd_particle_localizer gnd_particle_localizer_generate_messages_cpp gnd_msgs_generate_messages_cpp)
 install(TARGETS gnd_particle_localizer 
   RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION})
 
