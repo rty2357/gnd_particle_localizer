@@ -230,6 +230,7 @@ int main(int argc, char **argv) {
 			}
 		} // <--- make particle weights subscriber
 
+		// ---> make service server
 		if( ros::ok() ) {
 			fprintf(stdout, "\n");
 			fprintf(stdout, " => %d. make service server to reset particles\n", ++phase);
@@ -242,13 +243,13 @@ int main(int argc, char **argv) {
 				fprintf(stdout, "    ... service name is \"%s\"\n", node_config.service_name_reset_particles_nd.value );
 
 				// service server
+				srvfo_reset_particles_nd.clear();
 				srvserv_reset_particles_nd = nodehandle.advertiseService(
 						node_config.service_name_reset_particles_nd.value,
 						&srv_funcobj_reset_particles_nd_t::callback, &srvfo_reset_particles_nd);
 				fprintf(stdout, "    ... ok\n");
 			}
-
-		}
+		} // <--- make service server
 
 		// ---> text log file open
 		if( ros::ok() && node_config.particles_log.value[0] ) {
@@ -280,8 +281,8 @@ int main(int argc, char **argv) {
 		double time_display = 0;
 
 		msg_motion_t msg_motion;
-		msg_particle_weights_t particle_weights_integrated;
-		msg_particle_weights_t msg_particle_weights;
+		msg_particle_weights_t particle_weights_integrated;		// likelihood ratio
+		msg_particle_weights_t msg_particle_weights;			// likelihood
 
 		bool flg_resampling = false;
 
@@ -320,12 +321,15 @@ int main(int argc, char **argv) {
 			if( srvfo_reset_particles_nd.is_called() ) {// ---> reset particles (service called)
 				int size;
 
+				fprintf(stdout, "reset particles\n");
 				// set pose
 				srvfo_reset_particles_nd.get_average( &msg_pose.x, &msg_pose.y, &msg_pose.theta );
 
 				// resize
-				srvfo_reset_particles_nd.get_size(&size);
-				msg_particles.poses.resize( size );
+				srvfo_reset_particles_nd.get_size( &size );
+				if( size > 0 ) {
+					msg_particles.poses.resize( size );
+				}
 
 				{ // ---> initialize particles
 					gnd::matrix::fixed<3,3> cov;
@@ -341,10 +345,21 @@ int main(int argc, char **argv) {
 						// add random value
 						msg_particles.poses[i].x = msg_pose.x + rand[0];
 						msg_particles.poses[i].y = msg_pose.y + rand[1];
-						msg_particles.poses[i].theta = msg_pose.theta + rand[2];
+						msg_particles.poses[i].theta = gnd_rad_normalize( msg_pose.theta + rand[2] );
 					}
 				} // <--- initialize particles
 
+				// publish(pose)
+				msg_pose.header.stamp = msg_motion.header.stamp;
+				msg_pose.header.seq++;
+				pub_pose.publish(msg_pose);
+
+				// publish(particles)
+				msg_particles.header.stamp = msg_motion.header.stamp;
+				msg_particles.header.seq++;
+				pub_particles.publish(msg_particles);
+
+				// weight reset
 				particle_weights_integrated.weights.clear();
 				particle_weights_integrated.weights.resize( msg_particles.poses.size(), (float) 1.0 / msg_particles.poses.size() );
 				// have no evaluations
@@ -352,7 +367,7 @@ int main(int argc, char **argv) {
 
 				// clear
 				srvfo_reset_particles_nd.clear();
-
+				fprintf(stdout, "particle_reset\n");
 			} // <--- reset particles (service called)
 
 
@@ -453,7 +468,7 @@ int main(int argc, char **argv) {
 						sum += particle_weights_integrated.weights[i];
 					}
 
-					// normalize (make the sum to be equal 1.0) to avoid zero weight due to rounding error
+					// normalize (make the sum of weights to be equal 1.0) to avoid zero weight due to rounding error
 					for( unsigned int i = 0; i < particle_weights_integrated.weights.size(); i++ ){
 						particle_weights_integrated.weights[i] /= sum;
 					}
@@ -502,15 +517,15 @@ int main(int argc, char **argv) {
 						} // <--- set a new particle
 
 						{ // ---> set systematic error ratio
-							if( node_config.probability_change_systematic_error.value < gnd::random_uniform() ) {
+							if( node_config.probability_change_systematic_motion_error.value < gnd::random_uniform() ) {
 								// not change
 								systematic_error_ratio_depened_on_translate[i] = copy_syserr[j];
 							}
 							else {
 								// change
-								systematic_error_ratio_depened_on_translate[i][0] = node_config.standard_systematic_error.value[0] * gnd::random_gaussian(1.0);
-								systematic_error_ratio_depened_on_translate[i][1] = node_config.standard_systematic_error.value[1] * gnd::random_gaussian(1.0);
-								systematic_error_ratio_depened_on_translate[i][2] = node_config.standard_systematic_error.value[2] * gnd::random_gaussian(1.0);
+								systematic_error_ratio_depened_on_translate[i][0] = node_config.standard_systematic_motion_error.value[0] * gnd::random_gaussian(1.0);
+								systematic_error_ratio_depened_on_translate[i][1] = node_config.standard_systematic_motion_error.value[1] * gnd::random_gaussian(1.0);
+								systematic_error_ratio_depened_on_translate[i][2] = node_config.standard_systematic_motion_error.value[2] * gnd::random_gaussian(1.0);
 							}
 						} // <--- set systematic error ratio
 					}
@@ -530,6 +545,16 @@ int main(int argc, char **argv) {
 
 					cnt_resampling_display++;
 				} // <--- resampling
+
+				// publish(pose)
+				msg_pose.header.stamp = msg_motion.header.stamp;
+				msg_pose.header.seq++;
+				pub_pose.publish(msg_pose);
+
+				// publish(particles)
+				msg_particles.header.stamp = msg_motion.header.stamp;
+				msg_particles.header.seq++;
+				pub_particles.publish(msg_particles);
 
 				// next schedule
 				schedule_resampling = gnd_loop_next(time_current, time_start, node_config.period_resampling.value);

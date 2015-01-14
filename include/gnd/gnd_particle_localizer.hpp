@@ -65,12 +65,13 @@ namespace gnd {
 				double x;
 				double y;
 				double theta;
-			} _average;
-			double _covariance[9];
-			int _size;
-			bool _is_called;
+			} average_;
+			double covariance_[9];
+			int size_;
+			bool is_called_;
 		public:
 			srv_funcobj_reset_particles_normal_distribution();
+			~srv_funcobj_reset_particles_normal_distribution();
 			int clear();
 		public:
 			bool is_called();
@@ -102,49 +103,50 @@ namespace gnd {
 			clear();
 		}
 
+		srv_funcobj_reset_particles_normal_distribution::~srv_funcobj_reset_particles_normal_distribution() {
+		}
+
 		int srv_funcobj_reset_particles_normal_distribution::clear() {
-			_is_called = false;
+			is_called_ = false;
 			return 0;
 		}
 
 		bool srv_funcobj_reset_particles_normal_distribution::is_called() {
-			return _is_called;
+			return is_called_;
 		}
 
 
 		int srv_funcobj_reset_particles_normal_distribution::get_average(double *x, double *y, double *theta) {
-			*x = _average.x;
-			*y = _average.y;
-			*theta = _average.theta;
+			*x = average_.x;
+			*y = average_.y;
+			*theta = average_.theta;
 			return 0;
 		}
 
 		int srv_funcobj_reset_particles_normal_distribution::get_covariance( double *cov ) {
-			memcpy( cov, _covariance, sizeof(_covariance) );
+			memcpy( cov, covariance_, sizeof(covariance_) );
 			return 0;
 		}
 
 		int srv_funcobj_reset_particles_normal_distribution::get_size(int *size) {
-			*size = _size;
+			*size = size_;
 			return 0;
 		}
 
 		bool srv_funcobj_reset_particles_normal_distribution::callback(request_t& request, response_t& response) {
-			if(_is_called) {
+			if(is_called_) {
 				response.ret = false;
 			}
-			else if( request.size <= 0 ) {
+			else if( request.size < 0 ) {
 				response.ret = false;
 			}
 			else {
-				_average.x = request.x;
-				_average.y = request.y;
-				_average.theta = request.theta;
-				for( int i = 0; i < 9; i++){
-					_covariance[0] = request.covariance[0];
-				}
-				_size = request.size;
-				_is_called = true;
+				average_.x = request.x;
+				average_.y = request.y;
+				average_.theta = request.theta;
+				memcpy(covariance_, request.covariance.data(), sizeof(covariance_));
+				size_ = request.size;
+				is_called_ = true;
 				response.ret = true;
 			}
 
